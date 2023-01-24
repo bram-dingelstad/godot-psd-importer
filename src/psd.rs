@@ -1,21 +1,25 @@
 use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::BufWriter;
-use std::rc::Rc;
+use std::sync::Arc;
 
-use psd::{ColorMode, Psd, PsdGroup, PsdLayer};
+use psd::{Psd, PsdGroup, PsdLayer};
 
-struct PsdTree {
-    pub psd: Psd
+pub use psd;
+
+
+#[derive(Debug, Clone)]
+pub struct PsdTree {
+    pub psd: Arc<Psd>
 }
 
 impl PsdTree {
-    fn new(psd: Psd) -> Self {
-        PsdTree { psd }
+    pub fn new(psd: Psd) -> Self {
+        PsdTree { psd: Arc::from(psd) }
     }
 
-    fn children(&self) -> Vec<PsdNode> {
-        let tree = Rc::from(self);
+    pub fn get_children(&self) -> Vec<PsdNode> {
+        let tree = Arc::from(self.clone());
         let groups = tree.psd 
             .group_ids_in_order()
             .iter()
@@ -44,7 +48,7 @@ impl PsdTree {
                         Some(_) => None,
                         None => {
                             let element = PsdElement::Layer(layer.to_owned());
-                            
+
                             Some(PsdNode::new(element, tree.clone(), 0))
                         }
                     }
@@ -56,32 +60,35 @@ impl PsdTree {
         [groups, layers].concat()
     }
 
-    pub fn print(&self) {
-        for node in &self.children() {
-            node.print()
+    pub fn list(&self) -> Vec<String> {
+        let mut strings = vec![];
+        for node in &self.get_children() {
+            strings.append(&mut node.list())
         }
+
+        strings
     }
 
-    pub fn export_all(self) {
-        for node in &self.children() {
+    pub fn export_all_to_file(self) {
+        for node in &self.get_children() {
             if let PsdElement::Layer(_) = &node.element {
-                node.export();
+                node.export_to_file();
                 break
             } else {
-                node.export_all();
+                node.export_all_to_file();
             }
         }
     }
 }
 
-#[derive(Clone)]
-enum PsdElement {
+#[derive(Debug, Clone)]
+pub enum PsdElement {
     Group(PsdGroup),
     Layer(PsdLayer)
 }
 
 impl PsdElement {
-    fn name(&self) -> String {
+    pub fn name(&self) -> String {
         match &self {
             PsdElement::Group(group) => group.name().to_string(),
             PsdElement::Layer(layer) => layer.name().to_string()
@@ -89,18 +96,26 @@ impl PsdElement {
     }
 }
 
-#[derive(Clone)]
-struct PsdNode<'a> {
-    pub tree: Rc<&'a PsdTree>,
+#[derive(Debug, Clone)]
+pub struct PsdNode {
+    pub tree: Arc<PsdTree>,
     pub element: PsdElement,
-    pub children: Option<Vec<PsdNode<'a>>>,
     pub depth: usize
 }
 
-impl PsdNode<'_> {
-    fn new(element: PsdElement, tree: Rc<&PsdTree>, depth: usize) -> PsdNode {
-        let children = if let PsdElement::Group(group) = &element {
-            let groups = tree.psd
+impl PsdNode {
+    fn new(element: PsdElement, tree: Arc<PsdTree>, depth: usize) -> PsdNode {
+        
+        PsdNode {
+            tree,
+            element,
+            depth
+        }
+    }
+
+    pub fn get_children(&self) -> Option<Vec<PsdNode>> {
+        if let PsdElement::Group(group) = &self.element {
+            let groups = self.tree.psd
                 .groups()
                 .iter()
                 .filter_map(
@@ -109,9 +124,9 @@ impl PsdNode<'_> {
                             if group.id() == parent_id {
                                 Some(
                                     PsdNode::new(
-                                        PsdElement::Group(tree.psd.groups().get(id).unwrap().to_owned()), 
-                                        tree.clone(),
-                                        depth + 1
+                                        PsdElement::Group(self.tree.psd.groups().get(id).unwrap().to_owned()), 
+                                        self.tree.clone(),
+                                        &self.depth + 1
                                     )
                                 )
                             } else {
@@ -124,7 +139,7 @@ impl PsdNode<'_> {
                 )
                 .collect::<Vec<PsdNode>>();
 
-                let layers = tree.psd
+                let layers = self.tree.psd
                     .layers()
                     .iter()
                     .filter_map(
@@ -134,8 +149,8 @@ impl PsdNode<'_> {
                                     Some(
                                         PsdNode::new(
                                             PsdElement::Layer(layer.to_owned()),
-                                            tree.clone(),
-                                            depth + 1
+                                            self.tree.clone(),
+                                            &self.depth + 1
                                         )
                                     )
                                 } else {
@@ -151,18 +166,11 @@ impl PsdNode<'_> {
             Some([groups, layers].concat())
         } else {
             None
-        };
-
-        PsdNode {
-            tree,
-            element,
-            children,
-            depth
         }
     }
 
     // TODO: Clean this up with a decent implementation
-    fn get_path(&self) -> PathBuf {
+    pub fn get_path(&self) -> PathBuf {
         let mut parts: Vec<String> = vec![self.element.name()];
 
         let parent_id = match &self.element {
@@ -186,7 +194,15 @@ impl PsdNode<'_> {
         PathBuf::from(format!("/{}", parts.join("/")))
     }
 
-    fn export(&self) {
+    fn export(&self) -> Option<Vec<u8>> {
+        if let PsdElement::Layer(layer) = &self.element {
+            Some(layer.rgba())
+        } else {
+            None
+        }
+    }
+
+    fn export_to_file(&self) {
         if let PsdElement::Layer(layer) = &self.element {
             let path = PathBuf::from(
                 format!(
@@ -201,13 +217,13 @@ impl PsdNode<'_> {
         }
     }
 
-    fn export_all(&self) {
+    fn export_all_to_file(&self) {
         if let PsdElement::Group(_) = &self.element {
-            if let Some(children) = &self.children {
+            if let Some(children) = self.get_children() {
                 for child in children {
                     match &child.element {
-                        PsdElement::Group(_) => child.export_all(),
-                        PsdElement::Layer(_) => child.export()
+                        PsdElement::Group(_) => child.export_all_to_file(),
+                        PsdElement::Layer(_) => child.export_to_file()
                     }
                 }
             }
@@ -215,39 +231,26 @@ impl PsdNode<'_> {
 
     }
 
-    pub fn print(&self) {
+    pub fn list(&self) -> Vec<String> {
+        let mut strings = vec![];
         match &self.element {
             PsdElement::Group(group) => {
-                if let Some(children) = &self.children {
-                    println!("{}[G] {}", "\t".repeat(self.depth), group.name());
+                if let Some(children) = self.get_children() {
+                    strings.push(format!("{}[G] {}", "\t".repeat(self.depth), group.name()));
 
                     for node in children {
-                        node.print();
+                        strings.append(&mut node.list());
                     }
                 }
             },
             PsdElement::Layer(layer) => {
-                println!("{}[L] {}", "\t".repeat(self.depth), layer.name());
+                strings.push(format!("{}[L] {}", "\t".repeat(self.depth), layer.name()));
             }
         }
+
+        strings
     }
 }
-
-
-fn main() {
-    let psd = include_bytes!("../test.psd");
-    // TODO: find a way to get bytes from Godot's resource format?
-    let psd = Psd::from_bytes(psd).unwrap();
-
-    // TODO: Find a way to strictly require this in the Godot editor.
-    assert_eq!(psd.color_mode(), ColorMode::Rgb);
-
-    let tree = PsdTree::new(psd);
-
-    tree.print();
-    tree.export_all();
-}
-
 
 fn write_to_png(path: &Path, size: (u32, u32), bytes: Vec<u8>) {
     std::fs::DirBuilder::new()

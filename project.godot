@@ -1,0 +1,52 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=4
+
+_global_script_classes=[ {
+"base": "Object",
+"class": "PsdImporter",
+"language": "NativeScript",
+"path": "res://PsdImporter.gdns"
+} ]
+_global_script_class_icons={
+"PsdImporter": ""
+}
+
+[application]
+
+config/name="Godot PSD Importer"
+
+[debug]
+
+gdscript/warnings/treat_warnings_as_errors=true
+gdscript/warnings/return_value_discarded=false
+
+[editor_plugins]
+
+enabled=PoolStringArray( "res://addons/psd_importer/plugin.cfg" )
+
+[importer_defaults]
+
+bram.dingelstad.works.psd_importer={
+"custom_import_script": "",
+"dont_import": true,
+"import_only_visible": false,
+"single_import": false
+}
+
+[network]
+
+limits/debugger_stdout/max_chars_per_second=4096
+limits/debugger_stdout/max_messages_per_frame=1024
+
+[rendering]
+
+quality/driver/driver_name="GLES2"
+vram_compression/import_etc=true
+vram_compression/import_etc2=false

@@ -2,9 +2,20 @@
 name = "godot-psd-importer"
 version = "0.1.0"
 edition = "2021"
+publish = false
+default-run = "godot_psd_cli"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "godot_psd"
+path = "src/lib.rs"
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "godot_psd_cli"
+path = "src/bin.rs"
 
 [dependencies]
+gdnative = "0.11.2"
 png = "0.17.7"
 psd = "0.3.4"
+
