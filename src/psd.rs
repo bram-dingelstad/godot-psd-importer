@@ -194,14 +194,6 @@ impl PsdNode {
         PathBuf::from(format!("/{}", parts.join("/")))
     }
 
-    fn export(&self) -> Option<Vec<u8>> {
-        if let PsdElement::Layer(layer) = &self.element {
-            Some(layer.rgba())
-        } else {
-            None
-        }
-    }
-
     fn export_to_file(&self) {
         if let PsdElement::Layer(layer) = &self.element {
             let path = PathBuf::from(

@@ -1,6 +1,6 @@
 pub mod psd;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::path::PathBuf;
 
 use gdnative::prelude::*;
@@ -272,9 +272,12 @@ impl PsdNode {
                 let width = i64::from(self.internal_node.tree.psd.width());
                 let height = i64::from(self.internal_node.tree.psd.height());
 
-                let reference = owner.claim();
 
+                // Cleanup thread after execution of this method
                 unsafe { owner.call_deferred("cleanup_thread", &[]); }
+
+                // Turn TRef into Ref to cross thread boundary
+                let reference = unsafe { owner.assume_shared() };
 
                 let thread = std::thread::spawn(move || {
                     let image = Image::new();
@@ -284,8 +287,10 @@ impl PsdNode {
                         image.create_from_data(width, height, false, Image::FORMAT_RGBA8, data);
                     }
 
+                    // Sleep thread so unsafe access is slower than the `call_deferred` call above
                     std::thread::sleep(std::time::Duration::from_millis(1000));
 
+                    // Turn Ref into TRef to access `emit_signal` method
                     let access = unsafe { reference.assume_safe() };
                     access.emit_signal("image", &[Variant::new(image.into_shared())]);
 

@@ -11,7 +11,6 @@ func _ready():
 
 	var layer = $PsdImporter.get_node('/Expression/Festive/Happy')
 	print(layer.name)
-	print(JSON.print(layer.get_property_list(), "\t"))
 	print(layer.properties)
 	print(layer.node_type)
 	var image_texture = ImageTexture.new()
