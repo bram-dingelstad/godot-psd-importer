@@ -25,18 +25,23 @@ Unfortunately this option isn't available yet. Stay tuned!
 ### Clone this repository / [download the zip](https://github.com/bram-dingelstad/godot-psd-importer/archive/refs/heads/main.zip)
 
 1. Extract the repository in a folder of your choice.
-2. Import the project in Godot.
-3. Run the scene to get a taste of the PSD Importer!
-4. Move the addons folder to your Godot project.
-5. Enable the plugin in your Project Settings.
-6. Setup the importer using the [documentation](README.md#Documentation) or [tutorial](README.md#Tutorial)!
+1. Run `cargo build` in the folder. (More details on compilation [here](https://godot-rust.github.io/book/gdnative/intro/setup.html#rust))
+    * _Really sorry it works like this for now, will automate a 100% ready release soon!_
+1. Import the project in Godot.
+1. Run the scene to get a taste of the PSD Importer!
+1. Move the addons folder to your Godot project.
+1. Enable the plugin in your Project Settings.
+1. Setup the importer using the [documentation](README.md#Documentation) or [tutorial](README.md#Tutorial)!
 
 ## Roadmap
 
 There are a few things I want to tackle before calling a v1:
 
-- [ ] A mascot for the page and project
 - [ ] Releasing the addon on the AssetLib
+    - [ ] Make a release repository
+    - [ ] Make an automated Github Actions that cross-compiles
+- [ ] Write compilation instructions for the Rust aspect of the repository
+- [ ] A mascot for the page and project
 - [ ] Resolve problems with `get_node` function and path formatting.
     - Currently there are small nuances that can cause certain paths to not behave in a manner the user wants.
 - [ ] Add more sensible defaults for the default import script.
@@ -76,9 +81,9 @@ Made a GDScript `.gd` file and start by extending `PsdImportScript`.
 `PsdImportScript` has one method which is `import`. It has a few arguments:
 
 1. `plugin` which is a reference to the EditorPlugin instance, used to skipping frames
-* `importer` which is a pre-setup [`PsdImporter`](README.md#PsdImporter) instance with your PSD file pre-loaded.
-* `options` which is a [Dictionary](https://docs.godotengine.org/en/3.5/classes/class_dictionary.html) holding different import options set by the user.
-* `base_directory` which is a path [String](https://docs.godotengine.org/en/3.5/classes/class_string.html) where the PSD file is situated.
+1. `importer` which is a pre-setup [`PsdImporter`](README.md#PsdImporter) instance with your PSD file pre-loaded.
+1. `options` which is a [Dictionary](https://docs.godotengine.org/en/3.5/classes/class_dictionary.html) holding different import options set by the user.
+1. `base_directory` which is a path [String](https://docs.godotengine.org/en/3.5/classes/class_string.html) where the PSD file is situated.
 
 You can navigate the PSD by calling methods on the `importer` and its resulting [`PsdNode`](README.md#PsdNode) children, an example below is exporting all of the layers on the root of PSD that start with the letter A.
 
