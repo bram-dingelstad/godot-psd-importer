@@ -17,10 +17,10 @@ class ImportPlugin extends EditorImportPlugin:
 
 	enum Presets {
 		DONT_IMPORT,
-		IMPORT_AS_SINGLE_TEXTURE,
+		# IMPORT_AS_SINGLE_TEXTURE,
 		IMPORT_AS_SEPERATE_TEXTURES,
-		IMPORT_ALL_AS_SINGLE_TEXTURE,
-		IMPORT_ALL_AS_SEPERATE_TEXTURES
+		# IMPORT_ALL_AS_SINGLE_TEXTURE,
+		# IMPORT_ALL_AS_SEPERATE_TEXTURES
 	}
 
 	func _init(_plugin):
@@ -57,17 +57,17 @@ class ImportPlugin extends EditorImportPlugin:
 			Presets.DONT_IMPORT:
 				return 'Dont import'
 
-			Presets.IMPORT_AS_SINGLE_TEXTURE:
-				return 'Import as single texture'
-
+			# Presets.IMPORT_AS_SINGLE_TEXTURE:
+			# 	return 'Import as single texture'
+            #
 			Presets.IMPORT_AS_SEPERATE_TEXTURES:
 				return 'Import as seperate textures'
-
-			Presets.IMPORT_ALL_AS_SINGLE_TEXTURE:
-				return 'Import all as single texture'
-
-			Presets.IMPORT_ALL_AS_SEPERATE_TEXTURES:
-				return 'Import all as seperate textures'
+            #
+			# Presets.IMPORT_ALL_AS_SINGLE_TEXTURE:
+			# 	return 'Import all as single texture'
+            #
+			# Presets.IMPORT_ALL_AS_SEPERATE_TEXTURES:
+			# 	return 'Import all as seperate textures'
 
 			_:
 				return 'Unknown'
@@ -79,20 +79,20 @@ class ImportPlugin extends EditorImportPlugin:
 				name = 'dont_import',
 				default_value = preset == Presets.DONT_IMPORT
 			},
-			{
-				name = 'import_only_visible',
-				default_value = [
-					Presets.IMPORT_ALL_AS_SINGLE_TEXTURE,
-					Presets.IMPORT_ALL_AS_SEPERATE_TEXTURES
-				].has(preset)
-			},
-			{
-				name = 'single_import',
-				default_value = [
-					Presets.IMPORT_AS_SINGLE_TEXTURE,
-					Presets.IMPORT_ALL_AS_SINGLE_TEXTURE
-				].has(preset)
-			},
+			# {
+			# 	name = 'import_only_visible',
+			# 	default_value = [
+			# 		Presets.IMPORT_ALL_AS_SINGLE_TEXTURE,
+			# 		Presets.IMPORT_ALL_AS_SEPERATE_TEXTURES
+			# 	].has(preset)
+			# },
+			# {
+			# 	name = 'single_import',
+			# 	default_value = [
+			# 		Presets.IMPORT_AS_SINGLE_TEXTURE,
+			# 		Presets.IMPORT_ALL_AS_SINGLE_TEXTURE
+			# 	].has(preset)
+			# },
 			{
 				name = 'custom_import_script',
 				default_value = '',
@@ -126,9 +126,9 @@ class ImportPlugin extends EditorImportPlugin:
 				and ResourceLoader.exists(options['custom_import_script']):
 			script = load(options['custom_import_script']).new()
 
-			if not script is PsdImportScript:
-				printerr('Your custom script doesn\'t extend PsdImportScript found in res://addons/psd_importer/plugin.gd')
-				return FAILED
+			if not script.has_method('import'):
+				printerr('Your custom script doesn\'t extend PsdImportScript found in res://addons/psd_importer/psd_importer_script.gd')
+				return ERR_UNCONFIGURED
 
 		else:
 			script = DefaultPsdImportScript.new()
@@ -137,6 +137,7 @@ class ImportPlugin extends EditorImportPlugin:
 			return FAILED
 
 		script.import(plugin, importer, options, base_directory)
+
 		print('Done importing!')
 
 		# Save a stub

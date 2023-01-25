@@ -39,6 +39,7 @@ There are a few things I want to tackle before calling a v1:
 - [ ] Releasing the addon on the AssetLib
 - [ ] Resolve problems with `get_node` function and path formatting.
     - Currently there are small nuances that can cause certain paths to not behave in a manner the user wants.
+- [ ] Add more sensible defaults for the default import script.
 - [ ] Try to eliminate all of the `unwrap` calls or replace them with `expect`.
 - [ ] Try to eliminate all `unsafe` code or properly document it.
 
@@ -66,13 +67,53 @@ Support Placeholder Gameworks [by buying our games](https://store.steampowered.c
 Originally written by [Bram Dingelstad](https://bram.dingelstad.works).
 
 # Tutorial
-(under construction)
 
-## Using the addon
-(under construction)
+Using the standard addon is quite simple. Simply enable the plugin after [installing](README.md#Getting-started), and you should see `*.psd` files pop up in Godot's file explorer.
+Click on any of them and uncheck the "Dont import" option in the import tab. By default, the importer puts the files in the same directory as the import itself, so perhaps move it to a place where you want your final files to be.
 
 ## Writing a custom importer
-(under construction)
+Made a GDScript `.gd` file and start by extending `PsdImportScript`.
+`PsdImportScript` has one method which is `import`. It has a few arguments:
+
+1. `plugin` which is a reference to the EditorPlugin instance, used to skipping frames
+* `importer` which is a pre-setup [`PsdImporter`](README.md#PsdImporter) instance with your PSD file pre-loaded.
+* `options` which is a [Dictionary](https://docs.godotengine.org/en/3.5/classes/class_dictionary.html) holding different import options set by the user.
+* `base_directory` which is a path [String](https://docs.godotengine.org/en/3.5/classes/class_string.html) where the PSD file is situated.
+
+You can navigate the PSD by calling methods on the `importer` and its resulting [`PsdNode`](README.md#PsdNode) children, an example below is exporting all of the layers on the root of PSD that start with the letter A.
+
+
+```gdscript
+extends PsdImportScript
+
+func import(plugin, importer, options, base_directory):
+	# Go through all the children in the root of the PSD
+	for child in importer.get_children():
+		match child.node_type:
+			'Layer':
+				var name = child.name
+
+				# When it the name of the layer doesn't start with A or a, skip this (continue)
+				if not name.to_lower().starts_with('a'):
+					continue
+
+				var image_path = '%s%s.png' % [base_directory, name]
+
+				# Wait a frame every 
+				yield(plugin.get_tree(), 'idle_frame')
+
+				# Get the image
+				child.get_image()
+				var image = yield(child, 'image') # And await its result
+				if image:
+					image.save_png(image_path)
+					print('Imported "%s" to "%s"' % [name, image_path])
+				else:
+					printerr('Tried saving image to "%s" but something went wrong' % image_path)
+
+	return OK
+```
+Another example, which is default import script, can be found [here](addon/psd-importer/importer_example_default.gd). It features a recursive exporter, which will go into groups and export sublayers.
 
 # Documentation
 
