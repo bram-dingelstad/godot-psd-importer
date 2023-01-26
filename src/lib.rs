@@ -151,7 +151,7 @@ impl PsdImporter {
 #[register_with(Self::register_signals)]
 pub struct PsdNode {
     internal_node: Arc<InternalPsdNode>,
-    thread: Option<std::thread::JoinHandle<()>>,
+    thread: Option<std::thread::JoinHandle<Ref<Image, Unique>>>,
 
     #[property]
     name: String,
@@ -171,11 +171,13 @@ impl PsdNode {
     }
 
     #[method]
-    fn cleanup_thread(&mut self) {
+    fn cleanup_thread(&mut self, #[base] owner: &Reference) {
         let thread = std::mem::replace(&mut self.thread, None);
 
         if let Some(thread) = thread {
-            thread.join().unwrap();
+            let image = thread.join().unwrap();
+
+            owner.emit_signal("image", &[Variant::new(image)]);
         }
     }
 
@@ -276,9 +278,6 @@ impl PsdNode {
                 // Cleanup thread after execution of this method
                 unsafe { owner.call_deferred("cleanup_thread", &[]); }
 
-                // Turn TRef into Ref to cross thread boundary
-                let reference = unsafe { owner.assume_shared() };
-
                 let thread = std::thread::spawn(move || {
                     let image = Image::new();
 
@@ -287,14 +286,7 @@ impl PsdNode {
                         image.create_from_data(width, height, false, Image::FORMAT_RGBA8, data);
                     }
 
-                    // Sleep thread so unsafe access is slower than the `call_deferred` call above
-                    std::thread::sleep(std::time::Duration::from_millis(1000));
-
-                    // Turn Ref into TRef to access `emit_signal` method
-                    let access = unsafe { reference.assume_safe() };
-                    access.emit_signal("image", &[Variant::new(image.into_shared())]);
-
-                    drop(access);
+                    image
                 });
 
                 self.thread = Some(thread);
