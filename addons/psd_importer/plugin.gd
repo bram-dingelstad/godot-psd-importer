@@ -109,6 +109,8 @@ class ImportPlugin extends EditorImportPlugin:
 	func import(source_file, save_path, options, platform_variants, gen_files):
 		print('Importing a PSD')
 
+		ResourceSaver.save('%s.%s' % [save_path, get_save_extension()], Resource.new())
+
 		var base_directory = source_file.trim_suffix(source_file.get_file())
 
 		if options['dont_import']: return FAILED
@@ -141,7 +143,7 @@ class ImportPlugin extends EditorImportPlugin:
 		print('Done importing!')
 
 		# Save a stub
-		return ResourceSaver.save('%s.%s' % [save_path, get_save_extension()], Resource.new())
+		return OK
 
 
 class PsdImportScript:
@@ -174,7 +176,7 @@ class DefaultPsdImportScript extends PsdImportScript:
 					
 					# Wait a frame every 
 					yield(plugin.get_tree(), 'idle_frame')
-					child.get_image()
+					child.get_image(false)
 
 					var image = yield(child, 'image')
 					if image:

@@ -18,4 +18,5 @@ path = "src/bin.rs"
 gdnative = "0.11.2"
 png = "0.17.7"
 psd = "0.3.4"
-
+# psd = { path = "../psd" }
+auto-image-cropper = { git = "https://github.com/bram-dingelstad/auto-image-cropper.git" } #"0.1.5"

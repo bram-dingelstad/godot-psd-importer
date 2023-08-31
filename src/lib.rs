@@ -1,12 +1,16 @@
 pub mod psd;
 
-use std::sync::Arc;
 use std::path::PathBuf;
+use std::sync::Arc;
 
+use auto_image_cropper::imagecrop::ImageCrop;
 use gdnative::prelude::*;
-use crate::psd::{PsdTree, PsdNode as InternalPsdNode, PsdElement, psd::{Psd, ColorMode}};
 
 pub use crate::psd as psd_lib;
+use crate::psd::{
+    psd::{ColorMode, Psd, PsdError},
+    PsdElement, PsdNode as InternalPsdNode, PsdTree,
+};
 
 #[derive(NativeClass)]
 #[inherit(Object)]
@@ -18,11 +22,23 @@ impl PsdImporter {
         PsdImporter(None)
     }
 
-
     #[method]
     fn load(&mut self, bytes: PoolArray<u8>) {
         let bytes = bytes.to_vec();
-        let psd = Psd::from_bytes(&bytes).unwrap();
+        let psd = match Psd::from_bytes(&bytes) {
+            Ok(psd) => psd,
+            Err(error) => match error {
+                PsdError::HeaderError(error) => panic!("Failed to parse PSD header: {error:#?}"),
+                PsdError::LayerError(error) => panic!("Failed to parse PSD layer: {error:#?}"),
+                PsdError::ImageError(error) => {
+                    panic!("Failed to parse PSD data section: {error:#?}")
+                }
+                PsdError::ResourceError(error) => {
+                    panic!("Failed to parse PSD resource section: {error:#?}")
+                }
+                error => panic!("Failed to parse PSD: {error:#?}"),
+            },
+        };
 
         match psd.color_mode() {
             ColorMode::Rgb => {
@@ -50,12 +66,12 @@ impl PsdImporter {
             None => {
                 godot_error!("[PSD] You tried getting a node (layer or group), but you didn't load a PSD file (succesfully) yet.");
                 None
-            },
+            }
             Some(tree) => {
                 let path = PathBuf::from(path);
                 let mut pieces = path.iter().map(|e| e.to_str().unwrap());
 
-                // Skip the first root 
+                // Skip the first root
                 if path.is_absolute() {
                     pieces.next();
                 }
@@ -63,7 +79,8 @@ impl PsdImporter {
 
                 let piece = pieces.next()?;
 
-                let mut node = tree.get_children()
+                let mut node = tree
+                    .get_children()
                     .into_iter()
                     .find(|child| child.element.name() == piece)?;
 
@@ -71,11 +88,11 @@ impl PsdImporter {
                     for child in node.get_children()?.into_iter() {
                         if child.element.name() == piece {
                             node = child;
-                            continue 'pieces
+                            continue 'pieces;
                         }
                     }
 
-                    return None
+                    return None;
                 }
 
                 Some(PsdNode::from(node).emplace().into_shared())
@@ -89,13 +106,12 @@ impl PsdImporter {
             None => {
                 godot_error!("[PSD] You tried getting children of a node (layer or group), but you didn't load a PSD file (succesfully) yet.");
                 vec![]
-            },
-            Some(tree) => {
-                tree.get_children()
-                    .into_iter()
-                    .map(|internal_node| PsdNode::from(internal_node).emplace().into_shared())
-                    .collect::<Vec<Instance<PsdNode>>>()
             }
+            Some(tree) => tree
+                .get_children()
+                .into_iter()
+                .map(|internal_node| PsdNode::from(internal_node).emplace().into_shared())
+                .collect::<Vec<Instance<PsdNode>>>(),
         }
     }
 
@@ -105,20 +121,17 @@ impl PsdImporter {
             None => {
                 godot_error!("[PSD] You tried getting all layers at the root of the tree, but you didn't load a PSD file (succesfully) yet.");
                 vec![]
-            },
-            Some(tree) => {
-                tree.get_children()
-                    .into_iter()
-                    .filter_map(
-                        |internal_node| {
-                            match internal_node.element {
-                                PsdElement::Layer(_) => Some(PsdNode::from(internal_node).emplace().into_shared()),
-                                _ => None
-                            }
-                        }
-                    )
-                    .collect::<Vec<Instance<PsdNode>>>()
             }
+            Some(tree) => tree
+                .get_children()
+                .into_iter()
+                .filter_map(|internal_node| match internal_node.element {
+                    PsdElement::Layer(_) => {
+                        Some(PsdNode::from(internal_node).emplace().into_shared())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<Instance<PsdNode>>>(),
         }
     }
 
@@ -128,20 +141,17 @@ impl PsdImporter {
             None => {
                 godot_error!("[PSD] You tried getting all groups at the root of the tree, but you didn't load a PSD file (succesfully) yet.");
                 vec![]
-            },
-            Some(tree) => {
-                tree.get_children()
-                    .into_iter()
-                    .filter_map(
-                        |internal_node| {
-                            match internal_node.element {
-                                PsdElement::Group(_) => Some(PsdNode::from(internal_node).emplace().into_shared()),
-                                _ => None
-                            }
-                        }
-                    )
-                    .collect::<Vec<Instance<PsdNode>>>()
             }
+            Some(tree) => tree
+                .get_children()
+                .into_iter()
+                .filter_map(|internal_node| match internal_node.element {
+                    PsdElement::Group(_) => {
+                        Some(PsdNode::from(internal_node).emplace().into_shared())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<Instance<PsdNode>>>(),
         }
     }
 }
@@ -160,14 +170,13 @@ pub struct PsdNode {
     #[property]
     properties: Option<LayerProperties>,
     #[property]
-    node_type: PsdType
+    node_type: PsdType,
 }
 
 #[methods]
 impl PsdNode {
     fn register_signals(builder: &ClassBuilder<Self>) {
-        builder.signal("image")
-            .done();
+        builder.signal("image").done();
     }
 
     #[method]
@@ -186,7 +195,7 @@ impl PsdNode {
         let path = PathBuf::from(path);
         let mut pieces = path.iter().map(|e| e.to_str().unwrap());
 
-        // Skip the first root 
+        // Skip the first root
         if path.is_absolute() {
             pieces.next();
         }
@@ -194,7 +203,8 @@ impl PsdNode {
 
         let piece = pieces.next()?;
 
-        let mut node = self.internal_node
+        let mut node = self
+            .internal_node
             .get_children()?
             .into_iter()
             .find(|child| child.element.name() == piece)?;
@@ -203,11 +213,11 @@ impl PsdNode {
             for child in node.get_children()?.into_iter() {
                 if child.element.name() == piece {
                     node = child;
-                    continue 'pieces
+                    continue 'pieces;
                 }
             }
 
-            return None
+            return None;
         }
 
         Some(PsdNode::from(node).emplace().into_shared())
@@ -217,12 +227,10 @@ impl PsdNode {
     fn get_children(&self) -> Vec<Instance<PsdNode>> {
         match self.internal_node.get_children() {
             None => vec![],
-            Some(children) => {
-                children
-                    .into_iter()
-                    .map(|internal_node| PsdNode::from(internal_node).emplace().into_shared())
-                    .collect::<Vec<Instance<PsdNode>>>()
-            }
+            Some(children) => children
+                .into_iter()
+                .map(|internal_node| PsdNode::from(internal_node).emplace().into_shared())
+                .collect::<Vec<Instance<PsdNode>>>(),
         }
     }
 
@@ -230,19 +238,15 @@ impl PsdNode {
     fn get_layers(&self) -> Vec<Instance<PsdNode>> {
         match self.internal_node.get_children() {
             None => vec![],
-            Some(children) => {
-                children
-                    .into_iter()
-                    .filter_map(
-                        |internal_node| {
-                            match internal_node.element {
-                                PsdElement::Layer(_) => Some(PsdNode::from(internal_node).emplace().into_shared()),
-                                _ => None
-                            }
-                        }
-                    )
-                   .collect::<Vec<Instance<PsdNode>>>()
-            }
+            Some(children) => children
+                .into_iter()
+                .filter_map(|internal_node| match internal_node.element {
+                    PsdElement::Layer(_) => {
+                        Some(PsdNode::from(internal_node).emplace().into_shared())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<Instance<PsdNode>>>(),
         }
     }
 
@@ -250,47 +254,70 @@ impl PsdNode {
     fn get_groups(&self) -> Vec<Instance<PsdNode>> {
         match self.internal_node.get_children() {
             None => vec![],
-            Some(children) => {
-                children
-                    .into_iter()
-                    .filter_map(
-                        |internal_node| {
-                            match internal_node.element {
-                                PsdElement::Group(_) => Some(PsdNode::from(internal_node).emplace().into_shared()),
-                                _ => None
-                            }
-                        }
-                    )
-                   .collect::<Vec<Instance<PsdNode>>>()
-            }
+            Some(children) => children
+                .into_iter()
+                .filter_map(|internal_node| match internal_node.element {
+                    PsdElement::Group(_) => {
+                        Some(PsdNode::from(internal_node).emplace().into_shared())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<Instance<PsdNode>>>(),
         }
     }
 
     #[method]
-    fn get_image(&mut self, #[base] owner: TRef<Reference>){
+    fn get_image(&mut self, #[base] owner: TRef<Reference>, cropped: bool) {
         match &self.internal_node.element {
             PsdElement::Layer(_) => {
                 let internal_node = self.internal_node.clone();
-                let width = i64::from(self.internal_node.tree.psd.width());
-                let height = i64::from(self.internal_node.tree.psd.height());
-
+                let width = self.internal_node.tree.psd.width();
+                let height = self.internal_node.tree.psd.height();
 
                 // Cleanup thread after execution of this method
-                unsafe { owner.call_deferred("cleanup_thread", &[]); }
+                unsafe {
+                    owner.call_deferred("cleanup_thread", &[]);
+                }
 
                 let thread = std::thread::spawn(move || {
                     let image = Image::new();
 
                     if let PsdElement::Layer(layer) = &internal_node.element {
-                        let data = PoolArray::from_vec(layer.rgba());
-                        image.create_from_data(width, height, false, Image::FORMAT_RGBA8, data);
+                        match std::panic::catch_unwind(|| {
+                            if cropped {
+                                let crop = ImageCrop::from_buffer(width, height, layer.rgba())
+                                    .unwrap()
+                                    .auto_crop();
+
+                                let data = PoolArray::from_vec(crop.2.into_rgba8().into_raw());
+                                image.create_from_data(
+                                    crop.0.into(),
+                                    crop.1.into(),
+                                    false,
+                                    Image::FORMAT_RGBA8,
+                                    data,
+                                );
+                            } else {
+                                let data = PoolArray::from_vec(layer.rgba());
+                                image.create_from_data(
+                                    width.into(),
+                                    height.into(),
+                                    false,
+                                    Image::FORMAT_RGBA8,
+                                    data,
+                                );
+                            }
+                        }) {
+                            Ok(result) => result,
+                            _ => {}
+                        }
                     }
 
                     image
                 });
 
                 self.thread = Some(thread);
-            },
+            }
             _ => {}
         }
     }
@@ -299,7 +326,7 @@ impl PsdNode {
     fn _to_string(&self) -> String {
         match &self.node_type {
             PsdType::Layer => format!("Layer[{}]", self.internal_node.get_path().to_str().unwrap()),
-            PsdType::Group => format!("Group[{}]", self.internal_node.get_path().to_str().unwrap())
+            PsdType::Group => format!("Group[{}]", self.internal_node.get_path().to_str().unwrap()),
         }
     }
 }
@@ -311,27 +338,22 @@ impl From<InternalPsdNode> for PsdNode {
             path: internal_node.get_path().to_str().unwrap().to_string(),
             node_type: match internal_node.element {
                 PsdElement::Group(_) => PsdType::Group,
-                PsdElement::Layer(_) => PsdType::Layer
+                PsdElement::Layer(_) => PsdType::Layer,
             },
             properties: match &internal_node.element {
-                PsdElement::Layer(layer) => {
-                    Some(
-                        LayerProperties {
-                            visible: layer.visible(),
-                            opacity: layer.opacity(),
-                            width: u32::try_from(layer.width()).unwrap(),
-                            height: u32::try_from(layer.height()).unwrap(),
-                            group_id: layer.parent_id()
-                        }
-                        )
-                },
-                _ => None
+                PsdElement::Layer(layer) => Some(LayerProperties {
+                    visible: layer.visible(),
+                    opacity: layer.opacity(),
+                    width: u32::try_from(layer.width()).unwrap(),
+                    height: u32::try_from(layer.height()).unwrap(),
+                    group_id: layer.parent_id(),
+                }),
+                _ => None,
             },
 
             internal_node: Arc::from(internal_node),
-            thread: None
+            thread: None,
         }
-
     }
 }
 
@@ -342,36 +364,30 @@ impl From<Arc<InternalPsdNode>> for PsdNode {
             path: internal_node.get_path().to_str().unwrap().to_string(),
             node_type: match internal_node.element {
                 PsdElement::Group(_) => PsdType::Group,
-                PsdElement::Layer(_) => PsdType::Layer
+                PsdElement::Layer(_) => PsdType::Layer,
             },
             properties: match &internal_node.element {
-                PsdElement::Layer(layer) => {
-                    Some(
-                        LayerProperties {
-                            visible: layer.visible(),
-                            opacity: layer.opacity(),
-                            width: u32::try_from(layer.width()).unwrap(),
-                            height: u32::try_from(layer.height()).unwrap(),
-                            group_id: layer.parent_id()
-                        }
-                        )
-                },
-                _ => None
+                PsdElement::Layer(layer) => Some(LayerProperties {
+                    visible: layer.visible(),
+                    opacity: layer.opacity(),
+                    width: u32::try_from(layer.width()).unwrap(),
+                    height: u32::try_from(layer.height()).unwrap(),
+                    group_id: layer.parent_id(),
+                }),
+                _ => None,
             },
 
             internal_node,
-            thread: None
+            thread: None,
         }
     }
 }
-
-
 
 #[derive(FromVariant, ToVariant)]
 #[variant(enum = "str")]
 pub enum PsdType {
     Group,
-    Layer
+    Layer,
 }
 
 impl gdnative::export::Export for PsdType {
@@ -382,14 +398,13 @@ impl gdnative::export::Export for PsdType {
     }
 }
 
-
 #[derive(FromVariant, ToVariant, Clone)]
 pub struct LayerProperties {
     pub visible: bool,
     pub opacity: u8,
     pub width: u32,
     pub height: u32,
-    pub group_id: Option<u32>
+    pub group_id: Option<u32>,
 }
 
 impl gdnative::export::Export for LayerProperties {
@@ -406,4 +421,3 @@ fn init(handle: InitHandle) {
 }
 
 godot_init!(init);
-
