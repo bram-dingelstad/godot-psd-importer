@@ -196,7 +196,7 @@ impl PsdNode {
         )
     }
 
-    fn export_to_file(&self) {
+    pub fn export_to_file(&self) {
         if let PsdElement::Layer(layer) = &self.element {
             let path = PathBuf::from(format!(
                 "./psd-output{}.png",
@@ -213,9 +213,15 @@ impl PsdNode {
                 )
                 .unwrap();
 
-                let crop = image.auto_crop();
+                let (top_left, bottom_right, width, height, crop) = image.auto_crop();
 
-                (crop.0, crop.1, crop.2.into_rgba8().into_raw())
+                let opacity = layer.opacity();
+                let mut bytes = crop.into_rgba8().into_raw();
+                for byte in bytes.iter_mut().step_by(3) {
+                    *byte *= opacity / 255;
+                }
+
+                (top_left, bottom_right, width, height, bytes)
             }) {
                 Ok(buffer) => buffer,
                 Err(error) => {
@@ -224,7 +230,9 @@ impl PsdNode {
                 }
             };
 
-            write_to_png(path.as_path(), (buffer.0, buffer.1), buffer.2);
+            let (_, _, width, height, buffer) = buffer;
+
+            write_to_png(path.as_path(), (width, height), buffer);
             println!("Done exporting {}", path.to_str().unwrap());
         }
     }

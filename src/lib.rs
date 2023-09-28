@@ -161,7 +161,7 @@ impl PsdImporter {
 #[register_with(Self::register_signals)]
 pub struct PsdNode {
     internal_node: Arc<InternalPsdNode>,
-    thread: Option<std::thread::JoinHandle<Ref<Image, Unique>>>,
+    thread: Option<std::thread::JoinHandle<(Rect2, Ref<Image, Unique>)>>,
 
     #[property]
     name: String,
@@ -184,9 +184,9 @@ impl PsdNode {
         let thread = std::mem::replace(&mut self.thread, None);
 
         if let Some(thread) = thread {
-            let image = thread.join().unwrap();
+            let (rect, image) = thread.join().unwrap();
 
-            owner.emit_signal("image", &[Variant::new(image)]);
+            owner.emit_signal("image", &[Variant::new(image), Variant::new(rect)]);
         }
     }
 
@@ -267,6 +267,20 @@ impl PsdNode {
     }
 
     #[method]
+    fn get_rect2(&self) -> Rect2 {
+        match self.internal_node.element.clone() {
+            PsdElement::Layer(layer) => Rect2::new(
+                Vector2::new(layer.layer_left() as f32, layer.layer_top() as f32),
+                Vector2::new(layer.width().into(), layer.height().into()),
+            ),
+            PsdElement::Group(group) => Rect2::new(
+                Vector2::new(group.layer_left() as f32, group.layer_top() as f32),
+                Vector2::new(group.width().into(), group.height().into()),
+            ),
+        }
+    }
+
+    #[method]
     fn get_image(&mut self, #[base] owner: TRef<Reference>, cropped: bool) {
         match &self.internal_node.element {
             PsdElement::Layer(_) => {
@@ -282,23 +296,27 @@ impl PsdNode {
                 let thread = std::thread::spawn(move || {
                     let image = Image::new();
 
-                    if let PsdElement::Layer(layer) = &internal_node.element {
+                    let rect = if let PsdElement::Layer(layer) = &internal_node.element {
                         match std::panic::catch_unwind(|| {
-                            if cropped {
-                                let crop = ImageCrop::from_buffer(width, height, layer.rgba())
-                                    .unwrap()
-                                    .auto_crop();
+                            let mut rect = Rect2::new(Vector2::ZERO, Vector2::ZERO);
 
-                                let data = PoolArray::from_vec(crop.2.into_rgba8().into_raw());
-                                image.create_from_data(
-                                    crop.0.into(),
-                                    crop.1.into(),
-                                    false,
-                                    Image::FORMAT_RGBA8,
-                                    data,
-                                );
-                            } else {
-                                let data = PoolArray::from_vec(layer.rgba());
+                            if cropped {
+                                let (top_left, _, width, height, bytes) =
+                                    ImageCrop::from_buffer(width, height, layer.rgba())
+                                        .unwrap()
+                                        .auto_crop();
+
+                                rect.size = Vector2::new(width as f32, height as f32);
+                                rect.position = Vector2::new(top_left.x as f32, top_left.y as f32);
+
+                                // Pre-multiply layer alpha
+                                let opacity = layer.opacity();
+                                let mut bytes = bytes.into_rgba8().into_raw();
+                                for byte in bytes.iter_mut().step_by(3) {
+                                    *byte *= opacity / 255;
+                                }
+
+                                let data = PoolArray::from_vec(bytes);
                                 image.create_from_data(
                                     width.into(),
                                     height.into(),
@@ -306,14 +324,31 @@ impl PsdNode {
                                     Image::FORMAT_RGBA8,
                                     data,
                                 );
+
+                                rect
+                            } else {
+                                let data = PoolArray::from_vec(layer.rgba());
+                                rect.size = Vector2::new(width as f32, height as f32);
+
+                                image.create_from_data(
+                                    width.into(),
+                                    height.into(),
+                                    false,
+                                    Image::FORMAT_RGBA8,
+                                    data,
+                                );
+
+                                rect
                             }
                         }) {
                             Ok(result) => result,
-                            _ => {}
+                            _ => Rect2::new(Vector2::ZERO, Vector2::ZERO),
                         }
-                    }
+                    } else {
+                        Rect2::new(Vector2::ZERO, Vector2::ZERO)
+                    };
 
-                    image
+                    (rect, image)
                 });
 
                 self.thread = Some(thread);

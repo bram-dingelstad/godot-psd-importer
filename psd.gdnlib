@@ -7,7 +7,7 @@ reloadable=true
 
 [entry]
 
-OSX.64="res://target/release/libgodot_psd.dylib"
+OSX.64="res://target/debug/libgodot_psd.dylib"
 Windows.64="res://target/x86_64-pc-windows-gnu/release/godot_psd.dll"
 
 [dependencies]

@@ -64,7 +64,6 @@ dependencies = [
 [[package]]
 name = "auto-image-cropper"
 version = "0.1.5"
-source = "git+https://github.com/bram-dingelstad/auto-image-cropper.git#3f3fcd26b4532613fd15c3b5304670b24ebf9443"
 dependencies = [
  "clap",
  "image",
@@ -704,8 +703,6 @@ dependencies = [
 [[package]]
 name = "psd"
 version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1316f4ee59cdc95fc98e4e892a7edacaf1575620ca9e96abd421a2766fe45984"
 dependencies = [
  "thiserror",
 ]
