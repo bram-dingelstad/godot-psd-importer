@@ -312,8 +312,15 @@ impl PsdNode {
                                 // Pre-multiply layer alpha
                                 let opacity = layer.opacity();
                                 let mut bytes = bytes.into_rgba8().into_raw();
-                                for byte in bytes.iter_mut().step_by(3) {
-                                    *byte *= opacity / 255;
+                                let mut index = 0;
+                                for byte in bytes.iter_mut() {
+                                    if index % 4 == 3 {
+                                        if byte > &mut 0u8 {
+                                            *byte = (*byte as f32 * opacity as f32 / 255.0).round()
+                                                as u8
+                                        }
+                                    }
+                                    index += 1;
                                 }
 
                                 let data = PoolArray::from_vec(bytes);
@@ -324,6 +331,8 @@ impl PsdNode {
                                     Image::FORMAT_RGBA8,
                                     data,
                                 );
+
+                                // image.premultiply_alpha();
 
                                 rect
                             } else {

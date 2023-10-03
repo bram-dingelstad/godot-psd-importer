@@ -22,4 +22,4 @@ margin_right = 295.0
 margin_bottom = 220.5
 rect_pivot_offset = Vector2( 295, 220.5 )
 expand = true
-stretch_mode = 6
+stretch_mode = 4

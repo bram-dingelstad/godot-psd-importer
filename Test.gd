@@ -9,7 +9,7 @@ func _ready():
 	$PsdImporter.load(bytes)
 	$PsdImporter.print_tree()
 
-	var layer = $PsdImporter.get_node('/Tail/0/4')
+	var layer = $PsdImporter.get_node('/Face Shadows/Masculine')
 	print(layer.name)
 	print(layer.properties)
 	print(layer.node_type)
@@ -17,16 +17,16 @@ func _ready():
 	var image_texture = ImageTexture.new()
 	layer.get_image(true)
 	var tuple = yield(layer, 'image')
-	print(tuple)
 	var image = tuple[0]
 	var rect = tuple[1]
 
 	print(rect)
 	print(image)
+	print(image.detect_alpha())
 
 	image_texture.create_from_image(image)
 
 	$TextureRect.texture = image_texture
 
-func _process(delta):
-	$TextureRect.rect_rotation += 180 * delta
+# func _process(delta):
+# 	$TextureRect.rect_rotation += 180 * delta
